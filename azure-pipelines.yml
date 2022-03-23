@@ -1,0 +1,180 @@
+# https://stackoverflow.com/questions/60045425/how-to-make-azure-pipeline-yml-for-ci-for-a-r-package
+# https://community.rstudio.com/t/creating-an-azure-pipelines-yml-for-azure-devops-testing-packages-shiny-scripts/32471/2
+# https://adinermie.com/publishing-github-super-linter-terraform-quality-checks-to-azure-devops-pipelines/
+# https://github.com/r-lib/r-azure-pipelines
+# https://github.com/r-lib/r-azure-pipelines/blob/master/tests/testthat.R
+# https://github.com/megalinter/megalinter/issues/538#issuecomment-885602936
+
+parameters:
+  - name: R_LIBS_USER
+    displayName: Folder for user installed libraries
+    type: string
+    default: $(Agent.BuildDirectory)/R_LIBS_USER
+
+  - name: CRAN
+    displayName: CRAN mirror
+    type: string
+    default: https://packagemanager.rstudio.com/cran/__linux__/focal/latest
+    values:
+      - https://packagemanager.rstudio.com/cran/__linux__/focal/latest
+      - https://cran.rstudio.com
+      - https://cloud.r-project.org
+      - https://cran.csiro.au
+      - https://packagemanager.rstudio.com/
+
+  - name: upgrade_deps
+    displayName: upgrade package dependencies
+    type: string
+    default: never
+    values:
+      - always
+      - never
+
+  - name: cache
+    displayName: cache packages
+    type: boolean
+    default: true
+
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+jobs:
+- job: Check_R_Package
+
+  container:
+    image: 'rocker/tidyverse:latest'
+
+  variables:
+    _R_CHECK_FORCE_SUGGESTS_: false
+    MAKEFLAGS: "-j 2"
+    year_month: $[format('{0:yyyyMM}', pipeline.startTime)]
+
+  steps:
+  - script: |
+        echo "##vso[task.setvariable variable=pkg_name;]$(grep 'Package:' $(System.DefaultWorkingDirectory)/DESCRIPTION | awk '{ print $2 }')"
+    displayName: 'Read package name from DESCRIPTION file'
+
+  - script: |
+        echo 'options(repos = "${{ parameters.CRAN }}", Ncpus = 2, crayon.enabled = TRUE)' >> ~/.Rprofile
+    displayName: "Setting R options"
+
+  - script: |
+        mkdir -p ${{ parameters.R_LIBS_USER }}
+        echo '.libPaths("${{ parameters.R_LIBS_USER }}")' >> ~/.Rprofile
+    displayName: "Setting up R library"
+
+  - ${{ if eq(parameters.cache, 'true') }}:
+    - task: Cache@2
+      inputs:
+        key: '"$(pkg_name)" | "$(Agent.OS)" | "$(year_month)"'
+        path: ${{ parameters.R_LIBS_USER }}
+      displayName: Cache R packages
+
+  - script: R -q -e 'install.packages(setdiff(c("covr", "roxygen2", "testthat", "remotes", "rcmdcheck"), rownames(installed.packages())));
+                     remotes::install_deps(dependencies = TRUE, upgrade = "${{ parameters.upgrade_deps }}")'
+    displayName: 'Install Dependencies'
+
+  - script: R -q -e 'print(Sys.getenv())'
+    displayName: 'Print Sys.getenv for troubleshooting'
+
+  - script: R -q -e "rcmdcheck::rcmdcheck(args = '--no-manual', error_on = 'warning', check_dir = 'check')"
+    displayName: 'Check Package'
+
+  - script: R -q -e 'covr::azure()'
+    displayName: 'Run Code Coverage'
+    condition: succeededOrFailed()
+
+  - task: UseDotNet@2
+    displayName: 'Use .NET Core sdk'
+    inputs:
+      packageType: sdk
+      version: 3.1.402
+      installationPath: $(Agent.ToolsDirectory)/dotnet
+    condition: succeededOrFailed()
+
+  - task: PublishCodeCoverageResults@1
+    displayName: 'Publish Code Coverage'
+    inputs:
+      codeCoverageTool: 'Cobertura'
+      summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
+    condition: succeededOrFailed()
+
+  - task: PublishTestResults@2
+    displayName: 'Publish testthat Results'
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: '$(System.DefaultWorkingDirectory)/**/test-*.xml'
+      testRunTitle: R Check Test Results
+      mergeTestResults: false
+      failTaskOnFailedTests: true
+      publishRunAttachments: true
+    condition: succeededOrFailed()
+
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish Check log'
+    inputs:
+      pathToPublish: '$(System.DefaultWorkingDirectory)/check/$(pkg_name).Rcheck/00check.log'
+      artifactName: check
+    condition: succeededOrFailed()
+
+- job: Linter
+
+  dependsOn: Check_R_Package
+
+  steps:
+  - script: |
+      docker pull megalinter/megalinter:v5
+    displayName: 'Pulling Megalinter Image'
+
+  - script: |
+      docker run -v $(System.DefaultWorkingDirectory):/tmp/lint \
+        -e ENABLE_LINTERS=R_LINTR,COPYPASTE_JSCPD,CREDENTIALS_SECRETLINT,GIT_GIT_DIFF,SPELL_MISSPELL \
+        -e OUTPUT_FORMAT=tap \
+        -e OUTPUT_DETAIL=detailed \
+        -e DISABLE_ERRORS=true \
+        megalinter/megalinter:v5
+    displayName: 'MegaLinter analysis'
+
+# https://github.com/megalinter/megalinter/issues/538#issuecomment-885602936
+  - script: |
+      npm install -g tap-junit@4.2.0
+      mkdir $(System.DefaultWorkingDirectory)/report_converted/
+      cd $(System.DefaultWorkingDirectory)/report/tap
+
+      for report in *.tap
+      do
+        sudo sed -i "s/message: \*\+/message: /g" $report
+        sudo sed -i -E "s/(^|[ ]+)(#)[a-zA-Z]*/\1\/\//g" $report
+        cat $report | tap-junit -p -s "mega-linter" > ../../report_converted/${report%.*}.xml
+        sed -i 's/\\n/\n/g' ../../report_converted/${report%.*}.xml
+        sed -i 's/\x1b\[[0-9;]*m//g' ../../report_converted/${report%.*}.xml
+      done
+    displayName: 'Converting TAP to JUnit'
+
+  - task: PublishBuildArtifacts@1
+    displayName: 'MegaLinter Report'
+    inputs:
+      PathtoPublish: '$(System.DefaultWorkingDirectory)/report/'
+      ArtifactName: MegaLinterReport
+    condition: succeededOrFailed()
+
+  - task: PublishBuildArtifacts@1
+    displayName: 'MegaLinter JUNIT'
+    inputs:
+      PathtoPublish: '$(System.DefaultWorkingDirectory)/report_converted/'
+      ArtifactName: MegaLinterJUNIT
+    condition: succeededOrFailed()
+
+  - task: PublishTestResults@2
+    displayName: 'Publish MegaLinter Results'
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: '$(System.DefaultWorkingDirectory)/report_converted/**.xml'
+      testRunTitle: MegaLinter R_LINTR
+      mergeTestResults: false
+      failTaskOnFailedTests: true
+      publishRunAttachments: true
+    condition: succeededOrFailed()
