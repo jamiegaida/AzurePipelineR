@@ -2,7 +2,7 @@ Package: AzurePipelineR
 Title: Illustrate use of Azure Pipelines for R package test
 Version: 0.0.0.9000
 Authors@R: 
-    person("Jamie", "Gaida", , "jamie.feedback@internode.on.net", role = c("aut", "cre"), comment = c(ORCID = "0000-0002-4504-9188"))
+    person("Jamie", "Gaida", , "jamie.gaida.codes@gmail.com", role = c("aut", "cre"), comment = c(ORCID = "0000-0002-4504-9188"))
 Description: Illustrate use of Azure Pipelines for testing R package and using
     MegaLinter
 License: MIT + file LICENSE
