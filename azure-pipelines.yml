@@ -126,7 +126,7 @@ jobs:
 
   steps:
   - script: |
-      docker pull oxsecurity/megalinter:test-nvuillam-azure-comments
+      docker pull oxsecurity/megalinter:v6
     displayName: 'Pulling Megalinter Image'
 
   - script: |
@@ -135,7 +135,7 @@ jobs:
         -e OUTPUT_FORMAT=tap \
         -e OUTPUT_DETAIL=detailed \
         -e DISABLE_ERRORS=true \
-        oxsecurity/megalinter:test-nvuillam-azure-comments
+        oxsecurity/megalinter:v6
     displayName: 'MegaLinter analysis'
 
 # https://github.com/megalinter/megalinter/issues/538#issuecomment-885602936
