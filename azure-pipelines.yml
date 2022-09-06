@@ -126,7 +126,7 @@ jobs:
 
   steps:
   - script: |
-      docker pull megalinter/megalinter:v5
+      docker pull oxsecurity/megalinter:test-nvuillam-azure-comments
     displayName: 'Pulling Megalinter Image'
 
   - script: |
@@ -135,14 +135,14 @@ jobs:
         -e OUTPUT_FORMAT=tap \
         -e OUTPUT_DETAIL=detailed \
         -e DISABLE_ERRORS=true \
-        megalinter/megalinter:v5
+        oxsecurity/megalinter:test-nvuillam-azure-comments
     displayName: 'MegaLinter analysis'
 
 # https://github.com/megalinter/megalinter/issues/538#issuecomment-885602936
   - script: |
       npm install -g tap-junit@4.2.0
       mkdir $(System.DefaultWorkingDirectory)/report_converted/
-      cd $(System.DefaultWorkingDirectory)/report/tap
+      cd $(System.DefaultWorkingDirectory)/megalinter-reports/tap/
 
       for report in *.tap
       do
@@ -157,7 +157,7 @@ jobs:
   - task: PublishBuildArtifacts@1
     displayName: 'MegaLinter Report'
     inputs:
-      PathtoPublish: '$(System.DefaultWorkingDirectory)/report/'
+      PathtoPublish: '$(System.DefaultWorkingDirectory)/megalinter-reports/'
       ArtifactName: MegaLinterReport
     condition: succeededOrFailed()
 
