@@ -4,11 +4,11 @@ Version: 0.0.1
 Authors@R: 
     person("Jamie", "Gaida", , "jamie.gaida.codes@gmail.com", role = c("aut", "cre"), comment = c(ORCID = "0000-0002-4504-9188"))
 Description: Illustrate use of Azure Pipelines for testing R package and using
-    MegaLinter
+    MegaLinter.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.1.2
+RoxygenNote: 7.2.1
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
