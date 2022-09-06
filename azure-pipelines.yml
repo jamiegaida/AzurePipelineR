@@ -140,7 +140,7 @@ jobs:
 
 # https://github.com/megalinter/megalinter/issues/538#issuecomment-885602936
   - script: |
-      npm install -g tap-junit@4.2.0
+      npm install -g tap-junit@5.0.2
       mkdir $(System.DefaultWorkingDirectory)/report_converted/
       cd $(System.DefaultWorkingDirectory)/megalinter-reports/tap/
 
