@@ -1,6 +1,6 @@
 Package: AzurePipelineR
 Title: Illustrate use of Azure Pipelines for R package test
-Version: 0.0.2
+Version: 0.0.3
 Authors@R: 
     person("Jamie", "Gaida", , "jamie.gaida.codes@gmail.com", role = c("aut", "cre"), comment = c(ORCID = "0000-0002-4504-9188"))
 Description: Illustrate use of Azure Pipelines for testing R package and using
